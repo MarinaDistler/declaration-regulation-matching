@@ -13,6 +13,7 @@ class Reranker:
             model_path,
             device=device,
             max_length=max_length,
+            local_files_only=True,
         )
 
     def rerank(

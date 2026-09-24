@@ -4,7 +4,5 @@ __pycache__/
 .ipynb_checkpoints/
 models/*
 !models/.gitkeep
-out/*
-!out/.gitkeep
 *.log
 .DS_Store

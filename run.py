@@ -1,10 +1,12 @@
 import argparse
 from pathlib import Path
 import os
+import random
 
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
+import numpy as np
 import pandas as pd
 import torch
 
@@ -16,19 +18,22 @@ from src.preprocessing import (
     declaration_to_text,
     regulation_to_text,
 )
-from src.bm25 import BM25Retriever
 from src.embeddings import EmbeddingRetriever
-from src.reranker import Reranker
-from src.retrieval import retrieve_candidates
-from src.ranking import (
-    make_final_ranking,
-    validate_top_k,
-)
+from src.ranking import validate_top_k
 from src.utils import validate_predictions
+
+
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(42)
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
+
     parser.add_argument(
         "--data-dir",
         default="./data",
@@ -42,25 +47,16 @@ def parse_args():
         default="./out",
     )
     parser.add_argument(
-        "--bm25-k",
-        type=int,
-        default=50,
-    )
-    parser.add_argument(
         "--embedding-k",
         type=int,
-        default=50,
-    )
-    parser.add_argument(
-        "--candidate-k",
-        type=int,
-        default=100,
+        default=10,
     )
     parser.add_argument(
         "--final-k",
         type=int,
         default=10,
     )
+
     return parser.parse_args()
 
 
@@ -85,17 +81,16 @@ def main():
     # --------------------------------------------------
 
     declarations = load_declarations(
-        data_dir / "declarations.jsonl"
+        data_dir / "declarations (4).jsonl"
     )
 
     regulations = load_regulations(
-        data_dir / "regulations.jsonl"
+        data_dir / "regulations (4).jsonl"
     )
 
     print(
         f"Declarations: {len(declarations)}"
     )
-
     print(
         f"Regulations: {len(regulations)}"
     )
@@ -115,28 +110,17 @@ def main():
     ]
 
     # --------------------------------------------------
-    # BM25
-    # --------------------------------------------------
-
-    print("Building BM25...")
-
-    bm25 = BM25Retriever(
-        regulation_texts
-    )
-
-    # --------------------------------------------------
     # EMBEDDINGS
     # --------------------------------------------------
 
-    print("Loading embedding model...")
+    print("Loading BGE-M3...")
 
     embedding_retriever = EmbeddingRetriever(
         model_path=str(
-            models_dir / "embedding"
+            models_dir / "bge-m3"
         ),
         device=device,
         batch_size=32,
-        use_e5_prefix=True,
     )
 
     print("Encoding regulations...")
@@ -146,21 +130,7 @@ def main():
     )
 
     # --------------------------------------------------
-    # RERANKER
-    # --------------------------------------------------
-
-    print("Loading reranker...")
-
-    reranker = Reranker(
-        model_path=str(
-            models_dir / "reranker"
-        ),
-        device=device,
-        max_length=512,
-    )
-
-    # --------------------------------------------------
-    # RETRIEVAL + RERANKING
+    # RETRIEVAL
     # --------------------------------------------------
 
     results = []
@@ -174,28 +144,9 @@ def main():
 
         query = declaration_texts[i]
 
-        # 1. BM25 + embeddings
-        fused_candidates = retrieve_candidates(
+        ranked = embedding_retriever.retrieve(
             query=query,
-            bm25=bm25,
-            embedding_retriever=embedding_retriever,
-            candidate_k=args.candidate_k,
-            bm25_k=args.bm25_k,
-            embedding_k=args.embedding_k,
-        )
-
-        candidate_indices = [
-            idx
-            for idx, _ in fused_candidates
-        ]
-
-        # 2. Reranker
-        ranked = make_final_ranking(
-            declaration_text=query,
-            candidate_indices=candidate_indices,
-            regulation_texts=regulation_texts,
-            reranker=reranker,
-            top_k=args.final_k,
+            top_k=args.embedding_k,
         )
 
         # Safety check
@@ -204,9 +155,12 @@ def main():
             top_k=args.final_k,
         )
 
-        # 3. Save
+        # --------------------------------------------------
+        # OUTPUT
+        # --------------------------------------------------
+
         for rank, (reg_idx, score) in enumerate(
-            ranked,
+            ranked[:args.final_k],
             start=1,
         ):
             results.append(
@@ -227,7 +181,7 @@ def main():
             )
 
     # --------------------------------------------------
-    # OUTPUT
+    # VALIDATE OUTPUT
     # --------------------------------------------------
 
     predictions = pd.DataFrame(results)

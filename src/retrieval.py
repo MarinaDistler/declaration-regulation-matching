@@ -40,19 +40,20 @@ def retrieve_candidates(
     bm25_k: int = 50,
     embedding_k: int = 50,
 ):
-    bm25_results = bm25.retrieve(
-        query,
-        top_k=bm25_k,
-    )
+    bm25_results = bm25.retrieve(query, top_k=bm25_k)
 
     embedding_results = embedding_retriever.retrieve(
         query,
         top_k=embedding_k,
     )
 
-    fused = reciprocal_rank_fusion(
+    rrf_results = reciprocal_rank_fusion(
         [bm25_results, embedding_results],
         top_k=candidate_k,
     )
 
-    return fused
+    return {
+        "bm25": bm25_results,
+        "bge": embedding_results,
+        "rrf": rrf_results,
+    }
