@@ -97,7 +97,7 @@ def validate_llm_answer(answer, candidate_ids):
         raise ValueError("Candidate IDs do not match")
 
     for item in results:
-        if item.get("relevance") not in {0, 1, 2}:
+        if item.get("relevance") not in {0, 1}:
             raise ValueError(
                 f"Invalid relevance: {item}"
             )

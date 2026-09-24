@@ -10,7 +10,7 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 def install_dependencies(requirements_path=None):
     """Install project dependencies from requirements.txt."""
     if requirements_path is None:
-        root = Path(__file__).resolve().parent.parent
+        root = Path(__file__).resolve().parent
         requirements_path = root / "requirements.txt"
 
     requirements_path = Path(requirements_path)

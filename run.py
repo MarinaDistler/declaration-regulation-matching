@@ -51,11 +51,6 @@ def parse_args():
         type=int,
         default=10,
     )
-    parser.add_argument(
-        "--final-k",
-        type=int,
-        default=10,
-    )
 
     return parser.parse_args()
 
@@ -75,6 +70,8 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     print(f"Device: {device}")
+
+    final_k = 10
 
     # --------------------------------------------------
     # DATA
@@ -152,7 +149,7 @@ def main():
         # Safety check
         validate_top_k(
             ranked,
-            top_k=args.final_k,
+            top_k=final_k,
         )
 
         # --------------------------------------------------
@@ -160,7 +157,7 @@ def main():
         # --------------------------------------------------
 
         for rank, (reg_idx, score) in enumerate(
-            ranked[:args.final_k],
+            ranked[:final_k],
             start=1,
         ):
             results.append(
